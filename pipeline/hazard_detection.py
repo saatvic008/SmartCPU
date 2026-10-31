@@ -1,3 +1,4 @@
+# Enhanced by Srivignesh-Added Structural Hazards Checks
 """
 Hazard Detection Module
 Detects Data Hazards (RAW), Control Hazards, and Structural Hazards.
