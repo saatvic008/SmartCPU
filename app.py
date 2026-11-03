@@ -22,7 +22,8 @@ st.sidebar.header("⚙️ Execution Controls")
 assembly_code = st.sidebar.text_area(
     "Enter Assembly Instructions:", 
     height=300, 
-    value="MOV R1, 10\nMOV R2, 20\nADD R3, R1, R2\nSUB R4, R3, R1"
+    value="MOV R1, 10\nMOV R2, 20\nADD R3, R1, R2\nSUB R4, R3, R1\n# Bot Test"
+    
 )
 
 col1, col2 = st.sidebar.columns(2)
