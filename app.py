@@ -1,21 +1,19 @@
 """
-SmartCPU Interactive Dashboard - Version 2
-Integrates Memory, Cache, and improved UI.
+SmartCPU Interactive Dashboard - Final Version
+Integrates CPU Controller, Pipeline Visualization, Cache, and Hazards.
 """
 import streamlit as st
-from core.registers import RegisterFile
-from core.alu import ALU
+import pandas as pd
 from core.instruction_parser import InstructionParser
-from core.memory import MemorySystem
+from core.cpu_controller import CPUController
+from visualization.pipeline_chart import generate_pipeline_gantt
 
 st.set_page_config(page_title="SmartCPU Simulator", layout="wide", page_icon="🖥️")
-st.title("🖥️ SmartCPU - Interactive Architecture Simulator")
+st.title("🖥️ SmartCPU - Final Interactive Architecture Simulator")
 
 # Initialize Session State
-if 'registers' not in st.session_state:
-    st.session_state.registers = RegisterFile()
-if 'memory' not in st.session_state:
-    st.session_state.memory = MemorySystem()
+if 'cpu' not in st.session_state:
+    st.session_state.cpu = CPUController()
 
 # Sidebar Controls
 st.sidebar.header("⚙️ Execution Controls")
@@ -30,61 +28,59 @@ run_btn = col1.button("▶️ Execute All", type="primary")
 reset_btn = col2.button("🔄 Reset CPU")
 
 if reset_btn:
-    st.session_state.registers.reset()
-    st.session_state.memory.reset()
+    st.session_state.cpu.reset()
     st.rerun()
 
 # Execution Engine
 if run_btn:
-    st.session_state.registers.reset()
-    st.session_state.memory.reset()
-    
     parser = InstructionParser()
-    alu = ALU()
     instructions = parser.parse_program(assembly_code)
-    
-    execution_log = []
-    for instr in instructions:
-        op = instr['opcode']
-        ops = instr['operands']
-        try:
-            if op == 'MOV':
-                st.session_state.registers.write(ops[0], int(ops[1]))
-                execution_log.append(f"Executed: {instr['raw']}")
-            elif op in ['ADD', 'SUB', 'AND', 'OR', 'XOR']:
-                v1 = st.session_state.registers.read(ops[1])
-                v2 = st.session_state.registers.read(ops[2])
-                res = alu.execute(op, v1, v2)
-                st.session_state.registers.write(ops[0], res)
-                execution_log.append(f"Executed: {instr['raw']} -> Result: {res}")
-            elif op == 'STORE':
-                val = st.session_state.registers.read(ops[0])
-                st.session_state.memory.write(int(ops[1]), val)
-                execution_log.append(f"Executed: {instr['raw']} (Memory Write)")
-            elif op == 'LOAD':
-                val = st.session_state.memory.read(int(ops[1]))
-                st.session_state.registers.write(ops[0], val)
-                execution_log.append(f"Executed: {instr['raw']} -> Loaded: {val}")
-        except Exception as e:
-            execution_log.append(f"Error in {instr['raw']}: {str(e)}")
+    st.session_state.cpu.execute_program(instructions)
+
+# Get current state
+state = st.session_state.cpu.get_state()
 
 # Main Dashboard Layout
-col1, col2, col3 = st.columns(3)
+st.subheader("📊 CPU Registers")
+st.json(state["registers"])
+
+st.subheader("📈 Pipeline Visualization (Gantt Chart)")
+if state["pipeline_log"]:
+    fig = generate_pipeline_gantt(state["pipeline_log"])
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Execute instructions to see the pipeline chart.")
+
+col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📊 CPU Registers")
-    reg_data = st.session_state.registers.get_all()
-    st.json(reg_data)
-
-with col2:
-    st.subheader("💾 Cache Memory Stats")
-    cache_stats = st.session_state.memory.get_stats()
+    st.subheader("💾 Cache Memory Stats & Lines")
+    cache_stats = state["cache_stats"]
     st.metric(label="Cache Hits", value=cache_stats['hits'])
     st.metric(label="Cache Misses", value=cache_stats['misses'])
     st.metric(label="Hit Ratio", value=f"{cache_stats['hit_ratio']}%")
+    st.metric(label="Policy", value=cache_stats.get('policy', 'LRU'))
+    
+    st.write("**Current Cache Lines:**")
+    if hasattr(st.session_state.cpu.memory, 'get_cache_lines_for_ui'):
+        st.dataframe(pd.DataFrame(st.session_state.cpu.memory.get_cache_lines_for_ui()))
 
-with col3:
-    st.subheader("📝 Execution Log")
-    if run_btn:
-        for log in execution_log:
-            st.text(log)
+with col2:
+    st.subheader("⚠️ Hazard & Forwarding Logs")
+    hazard_stats = state["hazard_stats"]
+    st.metric(label="Total Stalls", value=hazard_stats['total_stalls'])
+    st.metric(label="Data Forwarding Count", value=hazard_stats['data_forwarding_count'])
+    
+    if hazard_stats['forwarding_log']:
+        st.write("**Forwarding Actions:**")
+        for log in hazard_stats['forwarding_log']:
+            st.success(log)
+            
+    if hazard_stats['hazards']:
+        st.write("**Detected Hazards:**")
+        for log in hazard_stats['hazards']:
+            st.warning(log)
+
+st.subheader("📝 Execution Log")
+for log in state["execution_log"]:
+    st.text(log)
