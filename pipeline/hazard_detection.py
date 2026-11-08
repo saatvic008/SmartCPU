@@ -1,6 +1,6 @@
 """
-Hazard Detection Module - Upgraded by Srivignesh
-Detects Hazards and implements Data Forwarding (Bypassing) logic.
+Hazard Detection Module - Premium Edition
+Accurately classifies RAW, Load-Use, and Control hazards.
 """
 
 class HazardDetector:
@@ -11,11 +11,7 @@ class HazardDetector:
         self.forwarding_log = []
 
     def check_raw_hazard(self, current_instr: dict, previous_instr: dict) -> dict:
-        """
-        Checks for Read-After-Write (RAW) data hazards.
-        Returns a dict indicating if a stall is needed or if forwarding can be used.
-        """
-        result = {"hazard": False, "stall": 0, "forward": False}
+        result = {"hazard": False, "stall": 0, "forward": False, "type": None}
         
         if not previous_instr:
             return result
@@ -24,40 +20,34 @@ class HazardDetector:
         prev_operands = previous_instr.get('operands', [])
         prev_dest = prev_operands[0] if len(prev_operands) > 0 else None
 
-        # Check if current instruction reads from the previous instruction's destination
-        # We skip the first operand of current_instr because that is the destination register
+        # Check dependencies (skip destination register of current instruction)
         for operand in current_operands[1:]: 
             if operand == prev_dest and prev_dest is not None:
                 result["hazard"] = True
+                prev_opcode = previous_instr.get('opcode')
                 
-                # DATA FORWARDING LOGIC (Bypassing)
-                if previous_instr.get('opcode') in ['ADD', 'SUB', 'AND', 'OR', 'XOR']:
-                    result["forward"] = True
-                    self.forwarding_count += 1
-                    msg = f"Forwarding: {current_instr['raw']} gets data directly from ALU output of {previous_instr['raw']}"
-                    self.forwarding_log.append(msg)
-                else:
-                    # Load-Use Hazard: Must stall
+                # LOAD-USE HAZARD: Requires 1 cycle stall
+                if prev_opcode == 'LOAD':
                     result["stall"] = 1
+                    result["type"] = "Load-Use Hazard"
                     self.stalls += 1
-                    msg = f"Load-Use Hazard: {current_instr['raw']} must wait for {previous_instr['raw']}"
-                    self.detected_hazards.append(msg)
+                    msg = f"Load-Use Hazard: {current_instr['raw']} must wait for memory read in {previous_instr['raw']}"
+                    self.detected_hazards.append({"type": "CRITICAL", "msg": msg})
+                
+                # RAW DEPENDENCY: Resolved via Data Forwarding (No Stall)
+                elif prev_opcode in ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MOV']:
+                    result["forward"] = True
+                    result["type"] = "RAW Dependency (Forwarded)"
+                    self.forwarding_count += 1
+                    msg = f"Data Forwarding: {current_instr['raw']} receives result directly from {previous_instr['raw']}"
+                    self.forwarding_log.append(msg)
                     
         return result
 
     def check_control_hazard(self, instruction: dict) -> bool:
-        """Checks if a branch/jump instruction causes a control hazard."""
         if instruction.get('opcode') in ['JMP', 'JE', 'JNE', 'CALL']:
-            self.stalls += 2 # Simulate 2-cycle branch penalty
-            self.detected_hazards.append(f"Control Hazard: Branch {instruction['raw']} flushed pipeline.")
-            return True
-        return False
-
-    def check_structural_hazard(self, resource_in_use: bool) -> bool:
-        """Checks if a hardware resource is being used by two stages at once."""
-        if resource_in_use:
-            self.stalls += 1
-            self.detected_hazards.append("Structural Hazard: Resource conflict detected.")
+            self.stalls += 2
+            self.detected_hazards.append({"type": "WARNING", "msg": f"Control Hazard: Branch {instruction['raw']} causes 2-cycle penalty."})
             return True
         return False
 
