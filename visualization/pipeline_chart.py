@@ -1,89 +1,31 @@
 """
-Pipeline Visualization Module
-Generates interactive Gantt charts for the 5-stage pipeline using Plotly.
-Fixed: Uses horizontal bar chart to properly display integer clock cycles.
+Pipeline Visualization Module - Premium Edition
 """
 import plotly.graph_objects as go
-import re
+import pandas as pd
 
-def generate_pipeline_gantt(pipeline_log: list) -> go.Figure:
-    """
-    Parses the pipeline execution log and generates a Gantt chart.
-    Expected log format: "Cycle X: STAGE - Instruction"
-    """
-    data = []
-    
-    # Regex to parse the log string
-    pattern = r"Cycle (\d+): (IF|ID|EX|MEM|WB|Stall Cycle \d+) - (.+)"
-    
-    for entry in pipeline_log:
-        match = re.search(pattern, entry)
-        if match:
-            cycle = int(match.group(1))
-            stage = match.group(2)
-            instruction = match.group(3).strip()
-            
-            # Handle Stall Cycles specifically
-            if "Stall" in stage:
-                stage = "STALL"
-                
-            data.append({
-                "instruction": instruction,
-                "start": cycle - 1,
-                "finish": cycle,
-                "stage": stage
-            })
-
-    if not data:
+def generate_pipeline_gantt(schedule: list) -> go.Figure:
+    if not schedule:
         fig = go.Figure()
-        fig.update_layout(title="No Pipeline Data Available", template="plotly_dark")
+        fig.update_layout(title="No Pipeline Data", template="plotly_dark", height=300)
         return fig
 
-    # Color mapping for stages
-    color_map = {
-        "IF": "#1f77b4",    # Blue
-        "ID": "#ff7f0e",    # Orange
-        "EX": "#2ca02c",    # Green
-        "MEM": "#d62728",   # Red
-        "WB": "#9467bd",    # Purple
-        "STALL": "#7f7f7f"  # Gray
-    }
-
-    # Create horizontal bar chart (Gantt-style)
+    df = pd.DataFrame(schedule)
+    color_map = {"IF": "#1f77b4", "ID": "#ff7f0e", "EX": "#2ca02c", "MEM": "#d62728", "WB": "#9467bd", "STALL": "#7f7f7f"}
     fig = go.Figure()
-
-    # Get unique instructions in order
-    instructions = list(dict.fromkeys([d["instruction"] for d in data]))
+    instructions = list(dict.fromkeys(df["Instruction"].tolist()))
     
     for instr in instructions:
-        instr_data = [d for d in data if d["instruction"] == instr]
-        for d in instr_data:
-            fig.add_trace(go.Bar(
-                name=d["stage"],
-                y=[instr],
-                x=[d["finish"] - d["start"]],  # Duration
-                base=[d["start"]],              # Start position
-                orientation='h',
-                marker_color=color_map.get(d["stage"], "#ffffff"),
-                hovertemplate=f"<b>{instr}</b><br>Stage: {d['stage']}<br>Cycle: {d['start']+1} to {d['finish']}<extra></extra>"
-            ))
+        instr_data = df[df["Instruction"] == instr]
+        for _, row in instr_data.iterrows():
+            stage = row["Stage"]
+            color = color_map.get(stage, "#ffffff")
+            opacity = 0.4 if row["Status"] == "Stall" else 1.0
+            fig.add_trace(go.Bar(name=stage, y=[instr], x=[row["Finish"] - row["Start"]], base=[row["Start"]], orientation='h', marker_color=color, opacity=opacity, hovertemplate=f"<b>{instr}</b><br>Stage: {stage}<br>Cycle: {row['Start']} to {row['Finish']}<br>Status: {row['Status']}<extra></extra>"))
 
-    # Layout configuration
-    fig.update_layout(
-        title="Instruction Pipeline Execution (Gantt Chart)",
-        xaxis_title="Clock Cycles",
-        yaxis_title="Instruction",
-        template="plotly_dark",
-        height=max(300, len(instructions) * 50),
-        barmode='overlay',
-        showlegend=True,
-        legend_title="Pipeline Stage",
-        xaxis=dict(
-            tickmode='linear',
-            tick0=1,
-            dtick=1,
-            range=[0, max(d["finish"] for d in data) + 1]
-        )
-    )
-
+    fig.update_layout(title="Pipeline Execution Timeline", xaxis_title="Clock Cycles", yaxis_title="Instructions", template="plotly_dark", height=max(300, len(instructions) * 40 + 50), barmode='overlay', showlegend=True, legend_title="Pipeline Stage", xaxis=dict(tickmode='linear', tick0=1, dtick=1), margin=dict(l=150, r=20, t=40, b=40))
+    seen = set()
+    for trace in fig.data:
+        if trace.name in seen: trace.showlegend = False
+        else: seen.add(trace.name)
     return fig
