@@ -1,12 +1,12 @@
 """
 Pipeline Visualization Module
 Generates interactive Gantt charts for the 5-stage pipeline using Plotly.
+Fixed: Uses horizontal bar chart to properly display integer clock cycles.
 """
-import plotly.express as px
-import pandas as pd
+import plotly.graph_objects as go
 import re
 
-def generate_pipeline_gantt(pipeline_log: list) -> "plotly.graph_objects.Figure":
+def generate_pipeline_gantt(pipeline_log: list) -> go.Figure:
     """
     Parses the pipeline execution log and generates a Gantt chart.
     Expected log format: "Cycle X: STAGE - Instruction"
@@ -28,18 +28,17 @@ def generate_pipeline_gantt(pipeline_log: list) -> "plotly.graph_objects.Figure"
                 stage = "STALL"
                 
             data.append({
-                "Task": instruction,
-                "Start": cycle - 1, # 0-indexed for Plotly
-                "Finish": cycle,
-                "Stage": stage
+                "instruction": instruction,
+                "start": cycle - 1,
+                "finish": cycle,
+                "stage": stage
             })
 
     if not data:
-        # Return an empty figure if no data
-        return px.timeline(title="No Pipeline Data Available")
+        fig = go.Figure()
+        fig.update_layout(title="No Pipeline Data Available", template="plotly_dark")
+        return fig
 
-    df = pd.DataFrame(data)
-    
     # Color mapping for stages
     color_map = {
         "IF": "#1f77b4",    # Blue
@@ -50,22 +49,41 @@ def generate_pipeline_gantt(pipeline_log: list) -> "plotly.graph_objects.Figure"
         "STALL": "#7f7f7f"  # Gray
     }
 
-    fig = px.timeline(
-        df, 
-        x_start="Start", 
-        x_end="Finish", 
-        y="Task", 
-        color="Stage",
-        color_discrete_map=color_map,
-        title="Instruction Pipeline Execution (Gantt Chart)",
-        labels={"Task": "Instruction", "Stage": "Pipeline Stage"}
-    )
+    # Create horizontal bar chart (Gantt-style)
+    fig = go.Figure()
+
+    # Get unique instructions in order
+    instructions = list(dict.fromkeys([d["instruction"] for d in data]))
     
-    fig.update_yaxes(autorange="reversed") # Show first instruction at the top
+    for instr in instructions:
+        instr_data = [d for d in data if d["instruction"] == instr]
+        for d in instr_data:
+            fig.add_trace(go.Bar(
+                name=d["stage"],
+                y=[instr],
+                x=[d["finish"] - d["start"]],  # Duration
+                base=[d["start"]],              # Start position
+                orientation='h',
+                marker_color=color_map.get(d["stage"], "#ffffff"),
+                hovertemplate=f"<b>{instr}</b><br>Stage: {d['stage']}<br>Cycle: {d['start']+1} to {d['finish']}<extra></extra>"
+            ))
+
+    # Layout configuration
     fig.update_layout(
+        title="Instruction Pipeline Execution (Gantt Chart)",
         xaxis_title="Clock Cycles",
+        yaxis_title="Instruction",
         template="plotly_dark",
-        height=400
+        height=max(300, len(instructions) * 50),
+        barmode='overlay',
+        showlegend=True,
+        legend_title="Pipeline Stage",
+        xaxis=dict(
+            tickmode='linear',
+            tick0=1,
+            dtick=1,
+            range=[0, max(d["finish"] for d in data) + 1]
+        )
     )
-    
+
     return fig
