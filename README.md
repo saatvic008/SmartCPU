@@ -47,7 +47,7 @@ This project was developed using an **AI-Augmented Workflow**, where human engin
 
 | Role | Name | Responsibility |
 | :--- | :--- | :--- |
-| **Team Lead** | [Your Name] | System Architecture, Pipeline Engine, Bot Orchestration |
+| **Team Lead** | Chetan Saatvic | System Architecture, Pipeline Engine, Bot Orchestration |
 | **Memory Specialist** | Mathin | Cache Logic (LRU), Main Memory Simulation |
 | **Pipeline Specialist** | Srivignesh | Hazard Detection, Data Forwarding Logic |
 | **CoreDev Bot** | AI Agent | Automated Core Module Generation |
