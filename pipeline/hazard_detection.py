@@ -4,7 +4,7 @@ Detects Hazards and implements Data Forwarding (Bypassing) logic.
 """
 
 class HazardDetector:
-    def _init_(self):
+    def __init__(self):
         self.stalls = 0
         self.forwarding_count = 0
         self.detected_hazards = []
@@ -25,20 +25,19 @@ class HazardDetector:
         prev_dest = prev_operands[0] if len(prev_operands) > 0 else None
 
         # Check if current instruction reads from the previous instruction's destination
-        for operand in current_operands[1:]: # Skip destination register of current instr
+        # We skip the first operand of current_instr because that is the destination register
+        for operand in current_operands[1:]: 
             if operand == prev_dest and prev_dest is not None:
                 result["hazard"] = True
                 
                 # DATA FORWARDING LOGIC (Bypassing)
-                # If the previous instruction was an ALU operation (ADD, SUB, etc.), 
-                # we can forward the result directly to the EX stage of the current instruction.
                 if previous_instr.get('opcode') in ['ADD', 'SUB', 'AND', 'OR', 'XOR']:
                     result["forward"] = True
                     self.forwarding_count += 1
                     msg = f"Forwarding: {current_instr['raw']} gets data directly from ALU output of {previous_instr['raw']}"
                     self.forwarding_log.append(msg)
                 else:
-                    # If it was a LOAD instruction, we MUST stall for 1 cycle (Load-Use Hazard)
+                    # Load-Use Hazard: Must stall
                     result["stall"] = 1
                     self.stalls += 1
                     msg = f"Load-Use Hazard: {current_instr['raw']} must wait for {previous_instr['raw']}"
@@ -55,7 +54,7 @@ class HazardDetector:
         return False
 
     def check_structural_hazard(self, resource_in_use: bool) -> bool:
-        """Checks if a hardware resource (like memory) is being used by two stages at once."""
+        """Checks if a hardware resource is being used by two stages at once."""
         if resource_in_use:
             self.stalls += 1
             self.detected_hazards.append("Structural Hazard: Resource conflict detected.")
