@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from core.instruction_parser import InstructionParser
 from core.cpu_controller import CPUController
 from visualization.pipeline_chart import generate_pipeline_gantt
+from visualization.live_execution import render_live_execution_tab
 
 st.set_page_config(page_title="SmartCPU Workbench", layout="wide", page_icon="CPU", initial_sidebar_state="expanded")
 
@@ -56,9 +57,13 @@ if reset_btn:
 
 state = st.session_state.cpu.get_state()
 st.title("CPU Architecture & Performance Analytics")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Pipeline", "Memory", "Hazards", "Trace"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🎬 Live Execution", "Overview", "Pipeline", "Memory", "Hazards", "Trace"])
+
 
 with tab1:
+    render_live_execution_tab(state)
+
+with tab2:
     kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
     total_cycles = state["total_cycles"]
     total_instr = state["total_instructions"]
@@ -73,7 +78,7 @@ with tab1:
     st.markdown("### Microarchitecture Datapath")
     st.markdown("""<div class="arch-diagram"><div class="arch-stage">IF<br><span style="font-size:0.7rem;color:#8b949e">Fetch</span></div><div class="arch-arrow">></div><div class="arch-stage">ID<br><span style="font-size:0.7rem;color:#8b949e">Decode</span></div><div class="arch-arrow">></div><div class="arch-stage">EX<br><span style="font-size:0.7rem;color:#8b949e">ALU/Forward</span></div><div class="arch-arrow">></div><div class="arch-stage">MEM<br><span style="font-size:0.7rem;color:#8b949e">Cache/RAM</span></div><div class="arch-arrow">></div><div class="arch-stage">WB<br><span style="font-size:0.7rem;color:#8b949e">Write Back</span></div></div>""", unsafe_allow_html=True)
 
-with tab2:
+with tab3:
     st.markdown("### Pipeline Execution Timeline")
     if state["pipeline_schedule"]:
         fig = generate_pipeline_gantt(state["pipeline_schedule"])
@@ -83,7 +88,7 @@ with tab2:
         eff_col2.metric("Actual Cycles", total_cycles)
     else: st.info("Run a simulation to view pipeline data.")
 
-with tab3:
+with tab4:
     st.markdown("### Cache Hierarchy Statistics")
     m_col1, m_col2, m_col3 = st.columns(3)
     m_col1.metric("Policy", state["cache_stats"].get("policy", "LRU"))
@@ -94,7 +99,7 @@ with tab3:
     st.markdown("### Memory Access Trace")
     if state["memory_trace"]: st.dataframe(pd.DataFrame(state["memory_trace"]), use_container_width=True, hide_index=True)
 
-with tab4:
+with tab5:
     st.markdown("### Hazard Analysis Center")
     h_col1, h_col2 = st.columns(2)
     h_col1.metric("Data Forwarding Ops", state["hazard_stats"]["data_forwarding_count"])
@@ -108,7 +113,7 @@ with tab4:
             if h["type"] == "CRITICAL": st.error(f"{h['type']}: {h['msg']}")
             else: st.warning(f"{h['type']}: {h['msg']}")
 
-with tab5:
+with tab6:
     st.markdown("### Instruction Execution Trace")
     if state["execution_log"]:
         df_trace = pd.DataFrame(state["execution_log"])
